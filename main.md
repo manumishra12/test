@@ -507,32 +507,199 @@ def prepare_universal_dataset():
     return universal_dataset
 ```
 
-### Flutter Implementation
+### Flutter Implementation (Plan A with GGUF)
 
 ```dart
-// Universal AI Service
-class UniversalAiService {
-  final AiServiceGguf _aiService = AiServiceGguf();
+// lib/services/universal_ai_service_gguf.dart
+import 'package:llama_cpp_dart/llama_cpp_dart.dart';
+
+class UniversalAiServiceGguf {
+  LlamaProcessor? _processor;
   String _currentRole = "wellness";
+  bool _isInitialized = false;
   
   static const Map<String, String> _systemPrompts = {
-    "wellness": "[AGENT:wellness] You are an empathetic wellness counselor...",
-    "math": "[AGENT:math] You are a precise mathematics tutor...",
-    "logistics": "[AGENT:logistics] You are an efficient logistics planner...",
+    "wellness": "[AGENT:wellness] You are an empathetic wellness counselor.",
+    "math": "[AGENT:math] You are a precise mathematics tutor.",
+    "logistics": "[AGENT:logistics] You are an efficient logistics planner.",
   };
   
-  void switchRole(String role) {
-    _currentRole = role;
+  // Initialize once - model stays in memory
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    
+    _processor = LlamaProcessor(
+      'assets/models/arny_universal.gguf',
+      nThreads: 4,
+      nCtx: 2048,
+      nBatch: 512,
+    );
+    await _processor!.initialize();
+    _isInitialized = true;
+    print('Universal model loaded: ~2GB RAM');
   }
   
-  Stream<String> generate(String prompt) {
-    return _aiService.generateStream(
-      prompt: prompt,
-      systemPrompt: _systemPrompts[_currentRole],
-    );
+  // Switch role instantly (just changes system prompt)
+  void switchRole(String role) {
+    if (_systemPrompts.containsKey(role)) {
+      _currentRole = role;
+      print('Switched to $role mode (instant, 0ms)');
+    }
+  }
+  
+  // Generate response with current role
+  Stream<String> generate(String prompt) async* {
+    if (!_isInitialized || _processor == null) {
+      throw Exception('Model not initialized');
+    }
+    
+    final fullPrompt = '''<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+${_systemPrompts[_currentRole]}<|eot_id|><|start_header_id|>user<|end_header_id|>
+$prompt<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+''';
+    
+    await for (final token in _processor!.stream(
+      fullPrompt,
+      maxTokens: 512,
+      temperature: 0.7,
+      stop: ['<|eot_id|>'],
+    )) {
+      yield token;
+    }
+  }
+  
+  void dispose() {
+    _processor?.dispose();
   }
 }
 ```
+
+**Usage Example:**
+```dart
+// In your Flutter app
+final aiService = UniversalAiServiceGguf();
+
+// Initialize once at app startup
+await aiService.initialize();
+
+// Switch between roles (instant)
+aiService.switchRole('wellness');
+await for (final token in aiService.generate('I feel stressed')) {
+  print(token); // "It's natural to feel..."
+}
+
+// Switch to math (instant, no loading)
+aiService.switchRole('math');
+await for (final token in aiService.generate('Solve 2x + 5 = 15')) {
+  print(token); // "Let's solve step by step..."
+}
+```
+
+**Key Characteristics:**
+- **RAM:** Constant ~2.2GB (model always loaded)
+- **Switching:** Instant (0ms)
+- **Best for:** High-end devices (8GB+ RAM)
+- **Risk:** May crash on iPhone 12/13 with low memory
+
+---
+
+### Flutter Implementation (Plan A with PTE)
+
+```dart
+// lib/services/universal_ai_service_pte.dart
+import 'package:flutter/services.dart';
+
+class UniversalAiServicePte {
+  static const MethodChannel _channel = 
+      MethodChannel('com.example.app/executorch');
+  
+  String _currentRole = "wellness";
+  bool _isInitialized = false;
+  
+  static const Map<String, String> _systemPrompts = {
+    "wellness": "[AGENT:wellness] You are an empathetic wellness counselor.",
+    "math": "[AGENT:math] You are a precise mathematics tutor.",
+    "logistics": "[AGENT:logistics] You are an efficient logistics planner.",
+  };
+  
+  // Initialize once - model loaded on native side
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    
+    final result = await _channel.invokeMethod<bool>(
+      'initializeModel',
+      {'modelPath': 'arny_universal.pte'},
+    );
+    
+    if (result == true) {
+      _isInitialized = true;
+      print('Universal model loaded with NPU/GPU acceleration');
+    }
+  }
+  
+  // Switch role instantly (just changes prompt prefix)
+  void switchRole(String role) {
+    if (_systemPrompts.containsKey(role)) {
+      _currentRole = role;
+      print('Switched to $role mode (instant, 0ms)');
+    }
+  }
+  
+  // Generate response with hardware acceleration
+  Future<String> generate(String prompt) async {
+    if (!_isInitialized) {
+      throw Exception('Model not initialized');
+    }
+    
+    final fullPrompt = '''${_systemPrompts[_currentRole]}
+
+User: $prompt
+Assistant:''';
+    
+    final result = await _channel.invokeMethod<String>(
+      'generateText',
+      {
+        'prompt': fullPrompt,
+        'maxTokens': 512,
+        'temperature': 0.7,
+      },
+    );
+    
+    return result ?? '[Error: No response]';
+  }
+  
+  Future<void> dispose() async {
+    await _channel.invokeMethod('disposeModel');
+    _isInitialized = false;
+  }
+}
+```
+
+**Usage Example:**
+```dart
+// In your Flutter app
+final aiService = UniversalAiServicePte();
+
+// Initialize once at app startup
+await aiService.initialize();
+
+// Switch between roles (instant)
+aiService.switchRole('wellness');
+final response1 = await aiService.generate('I feel stressed');
+print(response1); // Fast response with NPU/GPU
+
+// Switch to math (instant, no loading)
+aiService.switchRole('math');
+final response2 = await aiService.generate('Solve 2x + 5 = 15');
+print(response2); // Fast response with hardware acceleration
+```
+
+**Key Characteristics:**
+- **RAM:** ~1.8GB (more efficient than GGUF)
+- **Switching:** Instant (0ms)
+- **Performance:** 2-3x faster than GGUF (NPU/GPU)
+- **Complexity:** Requires native bridge implementation
+- **Best for:** High-end devices with native dev expertise
 
 ---
 
@@ -629,6 +796,225 @@ class RoutingDecision {
 }
 ```
 
+**Usage Example:**
+```dart
+// In your Flutter app
+final aiService = HybridAiServiceGguf();
+
+// Initialize gateway (300MB)
+await aiService.initialize();
+print('Gateway loaded: ~300MB RAM');
+
+// First wellness query (loads wellness model)
+await for (final token in aiService.generate(prompt: 'I feel anxious')) {
+  print(token); 
+  // Output: "[Loading wellness model...]"
+  // (2-4 seconds delay)
+  // Then: "It's completely normal to feel..."
+}
+
+// Second wellness query (model already loaded, no delay)
+await for (final token in aiService.generate(prompt: 'How to relax?')) {
+  print(token); // Immediate response
+}
+
+// Switch to math (unloads wellness, loads math)
+await for (final token in aiService.generate(prompt: 'Solve 3x + 7 = 22')) {
+  print(token);
+  // Output: "[Loading math model...]"
+  // (2-4 seconds delay)
+  // Then: "Let's solve step by step..."
+}
+```
+
+**Key Characteristics:**
+- **RAM:** Low ~500MB (only one specialist loaded)
+- **Switching:** 2-4 seconds (model loading delay)
+- **Best for:** All devices including budget phones
+- **Safe:** Works reliably on iPhone 12+, Android 10+
+
+---
+
+### Flutter Implementation (Plan B with PTE)
+
+```dart
+// lib/services/hybrid_ai_service_pte.dart
+import 'package:flutter/services.dart';
+import 'dart:convert';
+
+class HybridAiServicePte {
+  static const MethodChannel _channel = 
+      MethodChannel('com.example.app/executorch');
+  
+  bool _isInitialized = false;
+  String? _currentSpecialist;
+  
+  static const Map<String, String> _modelPaths = {
+    'gateway': 'gateway.pte',
+    'wellness': 'wellness.pte',
+    'math': 'math.pte',
+    'logistics': 'logistics.pte',
+  };
+  
+  // Initialize all models (memory-mapped, fast)
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    
+    // PTE models are memory-mapped, so we can "load" all without RAM penalty
+    final result = await _channel.invokeMethod<bool>(
+      'initializeModels',
+      {'models': _modelPaths},
+    );
+    
+    if (result == true) {
+      _isInitialized = true;
+      print('All models memory-mapped: ~400MB RAM total');
+    }
+  }
+  
+  // Classify intent using gateway
+  Future<RoutingDecision> classifyIntent(String input) async {
+    final result = await _channel.invokeMethod<String>(
+      'classifyIntent',
+      {'prompt': input},
+    );
+    
+    final json = jsonDecode(result ?? '{}');
+    return RoutingDecision(
+      agent: json['agent'] as String,
+      confidence: (json['confidence'] as num).toDouble(),
+    );
+  }
+  
+  // Switch specialist (fast with memory mapping)
+  Future<void> _switchSpecialist(String name) async {
+    if (_currentSpecialist == name) return;
+    
+    print('Switching to $name (<1s with memory mapping)');
+    await _channel.invokeMethod('switchSpecialist', {'name': name});
+    _currentSpecialist = name;
+  }
+  
+  // Generate with appropriate specialist
+  Future<String> generate(String prompt) async {
+    if (!_isInitialized) {
+      throw Exception('Models not initialized');
+    }
+    
+    // Step 1: Classify intent
+    final decision = await classifyIntent(prompt);
+    print('Classified as: ${decision.agent} (${decision.confidence})');
+    
+    // Step 2: Switch to specialist (fast)
+    await _switchSpecialist(decision.agent);
+    
+    // Step 3: Generate response
+    final result = await _channel.invokeMethod<String>(
+      'generateText',
+      {
+        'prompt': prompt,
+        'maxTokens': 512,
+        'temperature': 0.7,
+      },
+    );
+    
+    return result ?? '[Error: No response]';
+  }
+  
+  Future<void> dispose() async {
+    await _channel.invokeMethod('disposeModels');
+    _isInitialized = false;
+  }
+}
+
+class RoutingDecision {
+  final String agent;
+  final double confidence;
+  
+  RoutingDecision({required this.agent, required this.confidence});
+}
+```
+
+**Usage Example:**
+```dart
+// In your Flutter app
+final aiService = HybridAiServicePte();
+
+// Initialize all models (memory-mapped)
+await aiService.initialize();
+print('All models ready: ~400MB RAM');
+
+// First wellness query (switches to wellness)
+final response1 = await aiService.generate('I feel anxious');
+// Output: 
+// "Classified as: wellness (0.95)"
+// "Switching to wellness (<1s with memory mapping)"
+// Response: "It's completely normal to feel..."
+
+// Second wellness query (already on wellness, instant)
+final response2 = await aiService.generate('How to relax?');
+// No switching delay, immediate response
+
+// Switch to math (fast switch <1s)
+final response3 = await aiService.generate('Solve 3x + 7 = 22');
+// Output:
+// "Classified as: math (0.98)"
+// "Switching to math (<1s with memory mapping)"
+// Response: "Let's solve step by step..."
+```
+
+**Key Characteristics:**
+- **RAM:** Lowest ~400MB (memory-mapped models)
+- **Switching:** <1 second (fast with memory mapping)
+- **Performance:** 2-3x faster than GGUF (NPU/GPU)
+- **Complexity:** High (requires native implementation)
+- **Best for:** Production apps needing best performance
+
+---
+
+## Implementation Comparison Summary
+
+| Feature | Plan A GGUF | Plan A PTE | Plan B GGUF | Plan B PTE |
+|---------|-------------|------------|-------------|------------|
+| **Architecture** | Universal Monolith | Universal Monolith | Specialized Hybrid | Specialized Hybrid |
+| **Model Count** | 1 (3B params) | 1 (3B params) | 4 (Gateway + 3 Specialists) | 4 (Gateway + 3 Specialists) |
+| **Total Storage** | ~2GB | ~2GB | ~2GB (Gateway 300MB + Specialists 500MB each) | ~2GB |
+| **RAM Usage** | Constant 2.2GB | Constant 1.8GB | Dynamic 500MB | Dynamic 400MB |
+| **Context Switch** | Instant (0ms) | Instant (0ms) | 2-4 seconds | <1 second |
+| **Inference Speed** | 0.5s per response | 0.3s per response | 0.5s per response | 0.3s per response |
+| **Battery Impact** | High | Low | Medium | Very Low |
+| **Dev Complexity** | Low (Pure Dart) | High (Native Code) | Medium (Pure Dart) | Very High (Native Code) |
+| **Update Strategy** | Retrain entire model | Retrain entire model | Update individual specialists | Update individual specialists |
+| **Device Safety** | Risk on old devices | Good | Excellent | Excellent |
+| **Best Use Case** | Quick MVP on high-end | Performance MVP | Production-ready | Best performance |
+
+**Quick Selection Guide:**
+
+**Choose Plan A GGUF if:**
+- You need fastest development (1 week)
+- Testing MVP on high-end devices only
+- Team has no native mobile expertise
+- Instant context switching is critical
+
+**Choose Plan A PTE if:**
+- You need fast MVP with good performance
+- Team has native mobile expertise
+- Targeting premium devices
+- Can invest 2-3 weeks for native setup
+
+**Choose Plan B GGUF if:** (RECOMMENDED)
+- Building production app
+- Need wide device compatibility
+- Want modular updates
+- Team has no native mobile expertise
+- Can accept 2-4s switching delay
+
+**Choose Plan B PTE if:**
+- Building premium production app
+- Performance is critical (<1s everything)
+- Team has native mobile expertise
+- Budget allows 4-6 weeks native development
+
 ---
 
 # Part 3: Performance Analysis & Recommendations
@@ -678,32 +1064,6 @@ Once GGUF implementation is stable, migrate to PTE for performance optimization.
 
 ---
 
-## Implementation Roadmap
-
-**Phase 1: MVP (Week 1-2)**
-- Implement Plan B with GGUF
-- Train gateway and single specialist (wellness)
-- Route other intents to cloud
-- Test on 5-10 devices
-
-**Phase 2: Expansion (Week 3-4)**
-- Add math and logistics specialists
-- Implement on-demand model downloads
-- User testing and feedback
-
-**Phase 3: Optimization (Week 5-6)**
-- Profile performance bottlenecks
-- Evaluate PTE migration
-- Implement caching strategies
-- Add comprehensive analytics
-
-**Phase 4: Production (Week 7+)**
-- A/B test GGUF vs PTE
-- Optimize gateway classification
-- Add more specialists
-- Continuous monitoring
-
----
 
 ## Additional Resources
 
@@ -717,8 +1077,3 @@ Once GGUF implementation is stable, migrate to PTE for performance optimization.
 - Unsloth Colab Notebooks: https://github.com/unslothai/unsloth/tree/main/notebooks
 - Fine-tuning Guide: https://docs.unsloth.ai/
 - Quantization Best Practices: https://huggingface.co/docs/optimum/
-
-**Community:**
-- Unsloth Discord: https://discord.gg/unsloth
-- r/LocalLLaMA: Reddit community for on-device AI
-- Flutter Firebase: Cloud integration examples
