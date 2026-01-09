@@ -1,11 +1,6 @@
 # Local AI Models: Complete Mobile Deployment Guide
 ## iOS & Android using Unsloth, Llama.cpp (GGUF), and ExecuTorch (PTE)
 
-**Version:** 2.0  
-**Date:** January 2026  
-**Target Framework:** Flutter  
-**Document Type:** Comprehensive Implementation Guide
-
 ---
 
 ## Table of Contents
@@ -56,17 +51,17 @@ graph LR
 **Flutter Integration:** Direct via `llama_cpp_dart` package
 
 **Advantages:**
-- ✅ High stability and mature ecosystem
-- ✅ Broad device support (runs on any CPU)
-- ✅ Zero native code required (pure Dart)
-- ✅ Cross-platform consistency
-- ✅ Easy to debug and maintain
-- ✅ Smaller development overhead
+-  High stability and mature ecosystem
+-  Broad device support (runs on any CPU)
+-  Zero native code required (pure Dart)
+-  Cross-platform consistency
+-  Easy to debug and maintain
+-  Smaller development overhead
 
 **Disadvantages:**
-- ❌ Slower inference than hardware-accelerated solutions
-- ❌ Higher battery consumption on CPU-intensive tasks
-- ❌ Limited to CPU performance capabilities
+-  Slower inference than hardware-accelerated solutions
+-  Higher battery consumption on CPU-intensive tasks
+-  Limited to CPU performance capabilities
 
 **Best For:**
 - Rapid prototyping and MVP development
@@ -84,18 +79,18 @@ graph LR
 **Flutter Integration:** Manual via MethodChannels (Swift/Kotlin)
 
 **Advantages:**
-- ✅ Hardware acceleration (NPU/GPU)
-- ✅ Significantly faster inference (<1s responses)
-- ✅ Lower battery consumption with NPU
-- ✅ Official PyTorch mobile support
-- ✅ Memory-mapped model loading
+-  Hardware acceleration (NPU/GPU)
+-  Significantly faster inference (<1s responses)
+-  Lower battery consumption with NPU
+-  Official PyTorch mobile support
+-  Memory-mapped model loading
 
 **Disadvantages:**
-- ❌ Complex setup and integration
-- ❌ Requires native code (Swift/Kotlin/C++)
-- ❌ Platform-specific optimizations needed
-- ❌ Steeper learning curve
-- ❌ More debugging complexity
+-  Complex setup and integration
+-  Requires native code (Swift/Kotlin/C++)
+-  Platform-specific optimizations needed
+-  Steeper learning curve
+-  More debugging complexity
 
 **Best For:**
 - Production applications requiring instant responses
@@ -972,13 +967,13 @@ def export_to_pte(
             text=True,
         )
         print(result.stdout)
-        print("\n✅ Export successful!")
+        print("\n Export successful!")
         print(f"\nGenerated files in: {output_dir}/")
         print("  - model.pte (PyTorch Edge binary)")
         print("  - tokenizer.json (Tokenizer configuration)")
         
     except subprocess.CalledProcessError as e:
-        print("\n❌ Export failed!")
+        print("\n Export failed!")
         print(f"Error: {e.stderr}")
         raise
 
@@ -1005,10 +1000,10 @@ if __name__ == "__main__":
 
 | Recipe | Platform | Hardware | Complexity | Performance |
 |--------|----------|----------|------------|-------------|
-| `xnnpack` | iOS + Android | CPU | ⭐ Easy | Good |
-| `metal` | iOS only | GPU | ⭐⭐⭐ Hard | Excellent |
-| `vulkan` | Android | GPU | ⭐⭐⭐⭐ Very Hard | Excellent |
-| `qnn` | Qualcomm | NPU | ⭐⭐⭐⭐⭐ Expert | Outstanding |
+| `xnnpack` | iOS + Android | CPU | Easy | Good |
+| `metal` | iOS only | GPU | Hard | Excellent |
+| `vulkan` | Android | GPU | Very Hard | Excellent |
+| `qnn` | Qualcomm | NPU |  Expert | Outstanding |
 
 **Recommendation:** Start with `xnnpack` for proof-of-concept, then optimize with hardware-specific recipes for production.
 
@@ -1549,16 +1544,16 @@ graph LR
 - **Updates:** Must retrain entire model for any changes
 
 **Advantages:**
-- ✅ Simple architecture
-- ✅ No model loading delays
-- ✅ Easier to maintain single codebase
-- ✅ Faster development cycle
+-  Simple architecture
+-  No model loading delays
+-  Easier to maintain single codebase
+-  Faster development cycle
 
 **Disadvantages:**
-- ❌ High RAM usage (may crash on older devices)
-- ❌ Catastrophic forgetting risk (updating one skill affects others)
-- ❌ Larger storage requirement
-- ❌ Difficult to A/B test individual capabilities
+-  High RAM usage (may crash on older devices)
+-  Catastrophic forgetting risk (updating one skill affects others)
+-  Larger storage requirement
+-  Difficult to A/B test individual capabilities
 
 ---
 
@@ -1600,17 +1595,17 @@ graph TD
 - **Updates:** Independent model updates without affecting others
 
 **Advantages:**
-- ✅ Low RAM usage (safe for older devices)
-- ✅ Modular updates (change one skill without retraining all)
-- ✅ Progressive app updates (download models on-demand)
-- ✅ Easier A/B testing per capability
-- ✅ Scales to many specialized skills
+-  Low RAM usage (safe for older devices)
+-  Modular updates (change one skill without retraining all)
+-  Progressive app updates (download models on-demand)
+-  Easier A/B testing per capability
+-  Scales to many specialized skills
 
 **Disadvantages:**
-- ❌ Model loading delay when switching contexts
-- ❌ More complex orchestration logic
-- ❌ More training runs required
-- ❌ Larger total storage if all models downloaded
+-  Model loading delay when switching contexts
+-  More complex orchestration logic
+-  More training runs required
+-  Larger total storage if all models downloaded
 
 ---
 
@@ -2609,11 +2604,11 @@ graph TD
     
     Simple --> Q2{Target devices?}
     Q2 -->|High-end only| PlanA_GGUF[Plan A with GGUF]
-    Q2 -->|Wide range| PlanB_GGUF[Plan B with GGUF ⭐]
+    Q2 -->|Wide range| PlanB_GGUF[Plan B with GGUF]
     
     Advanced --> Q3{Performance critical?}
-    Q3 -->|Yes, need instant response| PlanB_PTE[Plan B with PTE ⭐⭐⭐]
-    Q3 -->|No, 1-2s OK| PlanB_GGUF2[Plan B with GGUF ⭐⭐]
+    Q3 -->|Yes, need instant response| PlanB_PTE[Plan B with PTE ]
+    Q3 -->|No, 1-2s OK| PlanB_GGUF2[Plan B with GGUF ]
     
     PlanA_GGUF --> Risk1[⚠️ May crash on old devices]
     PlanB_GGUF --> Rec1[✅ Safe for all devices]
@@ -2625,77 +2620,7 @@ graph TD
     style PlanB_GGUF2 fill:#ADD8E6
 ```
 
-## Recommended Implementation Path
 
-### Phase 1: MVP (Week 1-2)
-```
-✅ Implement Plan B with GGUF
-✅ Single specialist (wellness)
-✅ Gateway routes to cloud for other intents
-✅ Test on 5-10 devices
-```
-
-### Phase 2: Expansion (Week 3-4)
-```
-✅ Add math specialist
-✅ Add logistics specialist
-✅ Implement on-demand model downloads
-✅ User testing & feedback
-```
-
-### Phase 3: Optimization (Week 5-6)
-```
-✅ Profile performance bottlenecks
-⚠️ Consider migrating to PTE if needed
-✅ Implement model caching strategies
-✅ Add analytics for model usage
-```
-
-### Phase 4: Production (Week 7+)
-```
-✅ A/B test GGUF vs PTE
-✅ Optimize gateway classification
-✅ Add more specialists
-✅ Continuous monitoring
-```
-
----
-
-## Conclusion
-
-**For the Arny deployment, we recommend:**
-
-🏆 **Plan B (Hybrid) with GGUF** as the starting point:
-
-1. **Why Hybrid?**
-   - Ensures app stability across all devices (iPhone 12+, Android 10+)
-   - Allows progressive feature rollout
-   - Enables independent model updates
-   - Supports on-demand model downloads (smaller initial app size)
-
-2. **Why GGUF first?**
-   - Zero native code required
-   - Can implement entire system in 1-2 weeks
-   - Easy to debug and maintain
-   - Mature ecosystem (llama_cpp_dart)
-
-3. **Migration path to PTE:**
-   - Once GGUF system is stable and proven
-   - If user feedback indicates performance issues
-   - When team has resources for native development
-   - The architecture remains the same (just swap inference engine)
-
-**Next Immediate Steps:**
-
-1. Train gateway model on intent classification dataset
-2. Train one specialist (start with wellness)
-3. Implement Flutter orchestrator with loading screens
-4. Test on 3-5 different device tiers
-5. Iterate based on real device performance
-
-This approach balances development speed, device compatibility, and future scalability.
-
----
 
 ## Additional Resources
 
@@ -2710,14 +2635,3 @@ This approach balances development speed, device compatibility, and future scala
 - [Fine-tuning Guide for Mobile](https://docs.unsloth.ai/)
 - [Quantization Best Practices](https://huggingface.co/docs/optimum/en/concept_guides/quantization)
 
-### Community
-- Unsloth Discord: https://discord.gg/unsloth
-- r/LocalLLaMA: Reddit community for on-device AI
-- Flutter Firebase: For cloud integration examples
-
----
-
-**Document Version:** 2.0  
-**Last Updated:** January 2026  
-**Author:** Technical Architecture Team  
-**Status:** Comprehensive Implementation Guide
